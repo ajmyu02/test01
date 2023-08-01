@@ -4,59 +4,84 @@
 #N回以上連続してタイムアウトした場合にのみ故障とみなすように、設問1のプログラムを拡張せよ。
 #Nはプログラムのパラメータとして与えられるようにすること。
 
+import numpy as np
 import pandas as pd
 
-# csvファイルを読み込み, データフレーム化(日付はdatetime型に)
-def csv_to_df(csv="ping_test/log/02.csv"):
-    df = pd.read_csv(csv, names=["date", "address", "result"])
-    df["date"] = pd.to_datetime(df["date"].astype(str))
-    df = df.sort_values(["address", "date"])
-    df = df.reset_index(drop=True)
-    return df
+class Test_02:
 
-# タイムアウトがn回以上含まれているアドレスを抽出, リスト化し返す
-def timeouts(df, n):
-    timeouts = df[df["result"] == "-"]["address"].tolist()
-    timeouts = list(set(timeouts))
-    for i in timeouts:
-        to_count = ((df["address"] == i) & (df["result"] == "-")).sum()
-        if to_count < n:
-            timeouts.remove(i)
-    return timeouts
+    def __init__(self, n):
+        self.n = n
+        self.output_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive", "duration"])
+        
+    # csvファイルを読み込み, データフレーム化(日付はdatetime型に)
+    def csv_to_df(self, csv="ping_test/log/02.csv"):
+        df = pd.read_csv(csv, names=["date", "address", "result"])
+        df["date"] = pd.to_datetime(df["date"].astype(str))
+        df = df.sort_values(["address", "date"])
+        df = df.reset_index(drop=True)
+        self.df = df
+    
+    # タイムアウト連続回数チェック
+    def consecutive_check(self):
+        consecutive_df = pd.DataFrame(columns=["address", "index_begin", "index_end",])
+        sorted_df = self.df[self.df["result"] == "-"]
+        sorted_df = sorted_df.sort_values(["result", "address", "date"])
+        index_list = list(sorted_df.index)
+        index2 = []
+        numbers = [] #連続しているインデックス番号のリスト
+        addresses = [] #そのときのアドレスのリスト
+        
+        for x, y in sorted_df.groupby("address"):
+            for z in y.index:
+                index2.append(z)
 
-def output(df, timeouts):
-    errors_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive", "duration"])
-    for i in timeouts:
-        con_count = 0
-        latest_date = "0000-01-01 00:00:00"
-        to_count = ((df["address"] == i) & (df["result"] == "-")).sum()
-        for j in range(to_count):
-            to_begin_x = df[(df["address"] == i) & (df["result"] == "-")].index[j]
-            address = df.iloc[to_begin_x]["address"]
-            begin_date = df.iloc[to_begin_x]["date"]
-            to_end_x = df.iloc[to_begin_x:].loc[(df["address"] == i) & (df["result"] != "-")]
-            if to_end_x.empty == True:
-                begin_date = df.iloc[to_begin_x]["date"]
-                end_date = ""
-                duration = ""
+        #print(sorted_df)
+        for j in index2:
+            if not numbers or j > numbers[-1][-1] +1:
+                numbers.append([j])
             else:
-                end_date = df.iloc[to_end_x.index[0]]["date"]
-                if end_date == latest_date: #連続している場合の処理
-                    con_count += 1
-                latest_date = end_date
-        if con_count >= n-1:
-            oldest_date = df.iloc[to_begin_x - con_count]["date"] #タイムアウト開始日時を再設定(インデックスをずらす)
-            duration = (latest_date - oldest_date).seconds
-            data = pd.DataFrame({"address": [address], "timeout_begin": [oldest_date], 
-                                "timeout_end": [latest_date], "consecutive":[con_count+1], "duration": [duration]})
-            errors_df = pd.concat([errors_df, data])
-    return errors_df
+                numbers[-1].append(j)
+        numbers = [x for x in numbers if len(x) >= self.n] #指定したn回以上連続しているものだけ抽出
+        for k in range(len(numbers)):
+            addresses.append(self.df.iloc[numbers[k][0]]["address"])
+        self.numbers = numbers
+        self.addresses = addresses
+    
+    def output(self):
+        output_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive", "duration"])
+        for m in range(len(self.numbers)):
+            #タイムアウトの後復帰しているか確認
+            #print(self.numbers[m][-1], "以降をチェック")
+            con_n = len(self.numbers[m]) #連続回数
+            address = self.addresses[m]
+            begin = self.df.iloc[self.numbers[m][0]]["date"]
+            y = self.numbers[m][-1]
+            x = self.df.iloc[y:].loc[(self.df["address"] == self.addresses[m]) & (self.df["result"] != "-")]
+            if x.empty == True:
+                end = np.nan
+                duration = np.nan
+            else: #復帰している場合
+                end = self.df.iloc[x.index[0]]["date"]
+                duration = (end - begin).seconds
+            data = pd.DataFrame({"address": [address], "timeout_begin": [begin], "consecutive": [con_n],
+                                "timeout_end": [end], "duration": [duration]})
+            output_df = pd.concat([output_df, data])
+        output_df = output_df.reset_index(drop=True)
+        return output_df
 
-### 入力用 ###
+### 出力用 ###
 n = int(input("何回連続タイムアウトしたものを故障とみなしますか(整数入力):"))
-df = csv_to_df()
-timeouts = timeouts(df, n)
-output = output(df, timeouts)
+test = Test_02(n)
+test.csv_to_df()
+test.consecutive_check()
+print(test.output())
 
-print(df)
-print(output)
+
+#df = csv_to_df()
+#timeouts = timeouts(df, n)
+#output = output(df, timeouts)
+#index_list = consecutive_check(df, timeouts)
+
+#print(df)
+#print(timeouts)
+#print(output)
