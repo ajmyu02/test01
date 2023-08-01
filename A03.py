@@ -9,17 +9,17 @@ import pandas as pd
 
 class Test_02:
 
-    def __init__(self, n):
+    def __init__(self, n, r):
         self.n = n
-        self.output_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive", "duration"])
+        self.r = r
+        self.output_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive",  "duration"])
         
     # csvファイルを読み込み, データフレーム化(日付はdatetime型に)
-    def csv_to_df(self, csv="ping_test/log/02_02.csv"):
+    def csv_to_df(self, csv="ping_test/log/02.csv"):
         df = pd.read_csv(csv, names=["date", "address", "result"])
         df["date"] = pd.to_datetime(df["date"].astype(str))
         df = df.sort_values(["address", "date"])
         df = df.reset_index(drop=True)
-        print(df)
         self.df = df
     
     # タイムアウト連続回数チェック
@@ -27,7 +27,6 @@ class Test_02:
         consecutive_df = pd.DataFrame(columns=["address", "index_begin", "index_end",])
         sorted_df = self.df[self.df["result"] == "-"]
         sorted_df = sorted_df.sort_values(["result", "address", "date"])
-        print(sorted_df)
         index_list = list(sorted_df.index)
         index2 = []
         numbers = [] #連続しているインデックス番号のリスト
@@ -48,6 +47,15 @@ class Test_02:
             addresses.append(self.df.iloc[numbers[k][0]]["address"])
         self.numbers = numbers
         self.addresses = addresses
+    
+    # ---A03での追加部分--- #
+    # 直近の平均応答時間のチェック
+    def response(self):
+        all_address = list(set(self.df["address"]))
+        print(all_address)
+        sorted_df2 = self.df.sort_values(by=["address", "date"], ascending=[True, False])
+        print(sorted_df2)
+    # ---追加部分ここまで--- #    
     
     def output(self):
         output_df = pd.DataFrame(columns=["address", "timeout_begin", "timeout_end", "consecutive", "duration"])
@@ -73,9 +81,11 @@ class Test_02:
 
 ### 出力用 ###
 n = int(input("何回連続タイムアウトしたものを故障とみなしますか(整数入力):"))
-test = Test_02(n)
+r = int(input("直近何回の平均応答時間が何ミリ秒以上のものを高負荷とみなしますか(整数入力):"))
+test = Test_02(n, r)
 test.csv_to_df()
 test.consecutive_check()
+test.response()
 print(test.output())
 
 

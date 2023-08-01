@@ -6,7 +6,7 @@
 import pandas as pd
 
 # csvファイルを読み込み, データフレーム化(日付はdatetime型に)
-logs = pd.read_csv("ping_test/log/01.csv", names=["date", "address", "result"])
+logs = pd.read_csv("ping_test/log/01_06.csv", names=["date", "address", "result"])
 logs["date"] = pd.to_datetime(logs["date"].astype(str))
 
 # タイムアウトが含まれているアドレスを抽出しリスト化
